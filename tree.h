@@ -60,4 +60,8 @@ std::vector<dmatrix_row> random_distance_matrix(int size);
 void random_newick_tree(int size, std::string algorithm, std::string output, bool verbose);
 void help();
 
+// UPGMA algorithm declarations
+void upgma(std::vector<dmatrix_row>& D, Tree& tree, bool verbose);
+void upgma_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose);
+
 #endif

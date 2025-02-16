@@ -1,12 +1,13 @@
 # Phylogenetic Tree Construction Tool
 
-A C++ program for constructing phylogenetic trees from sequence data using either the Neighbor-Joining or Fitch-Margoliash algorithm. The program supports both FASTA and PAML format sequence files and can also generate random trees for testing purposes.
+A C++ program for constructing phylogenetic trees from sequence data using Neighbor-Joining, Fitch-Margoliash, or UPGMA algorithms. The program supports both FASTA and PAML format sequence files and can also generate random trees for testing purposes.
 
 ## Features
 
-- Two tree construction algorithms:
+- Three tree construction algorithms:
   - Neighbor-Joining (NJ): Fast and widely used method
   - Fitch-Margoliash (FM): More accurate branch lengths through weighted least squares optimization
+  - UPGMA: Produces ultrametric trees with molecular clock assumption
 - Multiple distance calculation methods:
   - Fractional k-mer count (default)
   - Mahalanobis distance
@@ -21,7 +22,7 @@ A C++ program for constructing phylogenetic trees from sequence data using eithe
 To compile the program, use g++ with C++11 support:
 
 ```bash
-g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp tree_io.cpp -std=c++11
+g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp upgma.cpp tree_io.cpp -std=c++11
 ```
 
 ## Usage
@@ -37,6 +38,7 @@ g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp tr
 - Algorithm Selection:
   - `-nj` : Use Neighbor-Joining algorithm (default)
   - `-fm` : Use Fitch-Margoliash algorithm
+  - `-upgma` : Use UPGMA algorithm
 
 - Distance Calculation Methods:
   - `-m` : Use Mahalanobis distance
@@ -64,19 +66,24 @@ g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp tr
 ./phylo_tree sequences.fasta -fm
 ```
 
-3. Using Mahalanobis distance with k-mer length 6:
+3. Using UPGMA algorithm:
+```bash
+./phylo_tree sequences.fasta -upgma
+```
+
+4. Using Mahalanobis distance with k-mer length 6:
 ```bash
 ./phylo_tree sequences.fasta -m -k 6
 ```
 
-4. Processing PAML file with 5 replicates:
+5. Processing PAML file with 5 replicates:
 ```bash
 ./phylo_tree sequences.paml -replicates 5
 ```
 
-5. Generate a random tree with 10 leaves using Fitch-Margoliash:
+6. Generate a random tree with 10 leaves using UPGMA:
 ```bash
-./phylo_tree -random 10 -fm
+./phylo_tree -random 10 -upgma
 ```
 
 ### Output
@@ -99,7 +106,19 @@ The program generates a Newick format tree file named `output.txt` in the curren
 - Features:
   - Branch length optimization after each node addition
   - Iterative tree improvement
-  - Weighted least squares criterion
+
+### UPGMA (Unweighted Pair Group Method with Arithmetic Mean)
+- Produces ultrametric trees (molecular clock assumption)
+- Simple and intuitive hierarchical clustering method
+- Good for datasets where evolutionary rates are roughly constant
+- Features:
+  - Guaranteed ultrametric property
+  - Height-based tree construction
+  - Computationally efficient: O(n²) time complexity
+- Best suited for:
+  - Closely related sequences
+  - Data that follows a molecular clock
+  - Situations where ultrametric trees are desired
 
 ## Distance Calculation Methods
 
