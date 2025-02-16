@@ -1,13 +1,14 @@
 # Phylogenetic Tree Construction Tool
 
-A C++ program for constructing phylogenetic trees from sequence data using Neighbor-Joining, Fitch-Margoliash, or UPGMA algorithms. The program supports both FASTA and PAML format sequence files and can also generate random trees for testing purposes.
+A C++ program for constructing phylogenetic trees from sequence data using Neighbor-Joining, Fitch-Margoliash, UPGMA, or Minimum Evolution algorithms. The program supports both FASTA and PAML format sequence files and can also generate random trees for testing purposes.
 
 ## Features
 
-- Three tree construction algorithms:
+- Four tree construction algorithms:
   - Neighbor-Joining (NJ): Fast and widely used method
   - Fitch-Margoliash (FM): More accurate branch lengths through weighted least squares optimization
   - UPGMA: Produces ultrametric trees with molecular clock assumption
+  - Minimum Evolution (ME): Optimizes tree topology based on minimum total branch length
 - Multiple distance calculation methods:
   - Fractional k-mer count (default)
   - Mahalanobis distance
@@ -22,7 +23,7 @@ A C++ program for constructing phylogenetic trees from sequence data using Neigh
 To compile the program, use g++ with C++11 support:
 
 ```bash
-g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp upgma.cpp tree_io.cpp -std=c++11
+g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp upgma.cpp minimum_evolution.cpp tree_io.cpp -std=c++11
 ```
 
 ## Usage
@@ -39,6 +40,7 @@ g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp up
   - `-nj` : Use Neighbor-Joining algorithm (default)
   - `-fm` : Use Fitch-Margoliash algorithm
   - `-upgma` : Use UPGMA algorithm
+  - `-me` : Use Minimum Evolution algorithm
 
 - Distance Calculation Methods:
   - `-m` : Use Mahalanobis distance
@@ -71,17 +73,22 @@ g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp up
 ./phylo_tree sequences.fasta -upgma
 ```
 
-4. Using Mahalanobis distance with k-mer length 6:
+4. Using Minimum Evolution algorithm:
+```bash
+./phylo_tree sequences.fasta -me
+```
+
+5. Using Mahalanobis distance with k-mer length 6:
 ```bash
 ./phylo_tree sequences.fasta -m -k 6
 ```
 
-5. Processing PAML file with 5 replicates:
+6. Processing PAML file with 5 replicates:
 ```bash
 ./phylo_tree sequences.paml -replicates 5
 ```
 
-6. Generate a random tree with 10 leaves using UPGMA:
+7. Generate a random tree with 10 leaves using UPGMA:
 ```bash
 ./phylo_tree -random 10 -upgma
 ```
@@ -119,6 +126,19 @@ The program generates a Newick format tree file named `output.txt` in the curren
   - Closely related sequences
   - Data that follows a molecular clock
   - Situations where ultrametric trees are desired
+
+### Minimum Evolution (ME)
+- Optimizes tree topology to minimize total branch length
+- Based on the principle that shorter trees are more likely to be correct
+- Features:
+  - Progressive clustering approach
+  - Efficient distance matrix updates
+  - Balanced consideration of all possible tree topologies
+- Advantages:
+  - Good for finding parsimonious trees
+  - Effective for datasets with varying evolutionary rates
+  - Less sensitive to long branch attraction
+- Computationally efficient: O(n³) time complexity
 
 ## Distance Calculation Methods
 

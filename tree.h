@@ -64,4 +64,8 @@ void help();
 void upgma(std::vector<dmatrix_row>& D, Tree& tree, bool verbose);
 void upgma_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose);
 
+// Minimum Evolution algorithm declarations
+void minimum_evolution(std::vector<dmatrix_row>& D, Tree& tree, bool verbose);
+void minimum_evolution_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose);
+
 #endif

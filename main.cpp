@@ -13,7 +13,8 @@ void help() {
               << "Algorithm selection:\n"
               << "            [-nj] : Neighbor-Joining algorithm (default)\n"
               << "            [-fm] : Fitch-Margoliash algorithm\n"
-              << "            [-upgma] : UPGMA algorithm\n\n"
+              << "            [-upgma] : UPGMA algorithm\n"
+              << "            [-me] : Minimum Evolution algorithm\n\n"
               << "Methods for calculating the distance matrix based on kmer profiles of sequences:  \n\n"
               << "            [-m] : mahalanobis; \n"
               << "            [-c] : cosine. \n"
@@ -60,6 +61,8 @@ void random_newick_tree(int size, std::string algorithm, std::string output, boo
         fitch_margoliash_tree(D, output, verbose);
     } else if (algorithm == "upgma") {
         upgma_tree(D, output, verbose);
+    } else if (algorithm == "me") {
+        minimum_evolution_tree(D, output, verbose);
     } else {
         neighbor_joining_tree(D, output, verbose);
     }
@@ -75,6 +78,8 @@ void fasta_to_newick(std::string& filename, int kmer_length, std::string method,
         fitch_margoliash(D, tree, verbose);
     } else if (algorithm == "upgma") {
         upgma(D, tree, verbose);
+    } else if (algorithm == "me") {
+        minimum_evolution(D, tree, verbose);
     } else {
         neighbor_joining(D, tree, verbose);
     }
@@ -96,6 +101,8 @@ void paml_to_newick(std::string& filename, int kmer_length, int n_replicates, st
             fitch_margoliash(D, tree, verbose);
         } else if (algorithm == "upgma") {
             upgma(D, tree, verbose);
+        } else if (algorithm == "me") {
+            minimum_evolution(D, tree, verbose);
         } else {
             neighbor_joining(D, tree, verbose);
         }
@@ -126,6 +133,7 @@ int main(int argc, char** argv) {
         else if (arg == "-nj") algorithm = "nj";
         else if (arg == "-fm") algorithm = "fm";
         else if (arg == "-upgma") algorithm = "upgma";
+        else if (arg == "-me") algorithm = "me";
         else if (arg == "-k" && i + 1 < argc) kmer_length = std::stoi(argv[++i]);
         else if (arg == "-replicates" && i + 1 < argc) n_replicates = std::stoi(argv[++i]);
         else if (arg == "-v") verbose = true;
