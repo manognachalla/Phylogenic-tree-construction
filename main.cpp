@@ -6,7 +6,7 @@
 void help() {
     std::cout << "\nArgument help:\n"
               << "1st argument:\n"
-              << "            filename of the sequences ['.fasta' or '.paml'] format.\n"
+              << "            filename of the sequences ['.fasta'] format.\n"
               << "            or\n"
               << "            [-random INT] : generate a random distance matrix of size INT x INT and create a Newick format tree with INT leaf nodes\n\n"
               << "Additional arguments: \n"
@@ -88,29 +88,6 @@ void fasta_to_newick(std::string& filename, int kmer_length, std::string method,
     write_to_file(output, to_write);
 }
 
-void paml_to_newick(std::string& filename, int kmer_length, int n_replicates, std::string method, std::string algorithm, std::string output, bool verbose) {
-    std::vector<sequence> sequences = read_paml(filename, n_replicates);
-    std::vector<std::string> to_write;
-    
-    for (int i = 0; i < n_replicates; i++) {
-        std::vector<std::vector<float>> frequencies = count_kmer_frequencies(sequences[i], kmer_length);
-        std::vector<dmatrix_row> D = distance_matrix(frequencies, sequences[i], kmer_length, method);
-        Tree tree(sequences[i]);
-        
-        if (algorithm == "fm") {
-            fitch_margoliash(D, tree, verbose);
-        } else if (algorithm == "upgma") {
-            upgma(D, tree, verbose);
-        } else if (algorithm == "me") {
-            minimum_evolution(D, tree, verbose);
-        } else {
-            neighbor_joining(D, tree, verbose);
-        }
-        
-        to_write.push_back(tree.newick);
-    }
-    write_to_file(output, to_write);
-}
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -142,9 +119,6 @@ int main(int argc, char** argv) {
     if (input == "-random" && argc > 2) {
         int size = std::stoi(argv[2]);
         random_newick_tree(size, algorithm, output, verbose);
-    }
-    else if (input.find(".paml") != std::string::npos) {
-        paml_to_newick(input, kmer_length, n_replicates, method, algorithm, output, verbose);
     }
     else {
         fasta_to_newick(input, kmer_length, method, algorithm, output, verbose);

@@ -38,7 +38,6 @@ public:
 
 // Function declarations for sequence processing
 sequence read_fasta(std::string filename);
-std::vector<sequence> read_paml(std::string filename, int n_replicates);
 std::vector<std::vector<float>> count_kmer_frequencies(sequence& sequences, int& kmer_length);
 std::vector<dmatrix_row> distance_matrix(std::vector<std::vector<float>>& frequencies, sequence& sequences, int kmer_length, std::string method);
 
@@ -55,7 +54,6 @@ void optimize_branch_lengths(Tree& tree, const std::vector<dmatrix_row>& D);
 // File I/O and utility functions
 void write_to_file(std::string filename, std::vector<std::string> to_write);
 void fasta_to_newick(std::string& filename, int kmer_length, std::string method, std::string algorithm, std::string output, bool verbose);
-void paml_to_newick(std::string& filename, int kmer_length, int n_replicates, std::string method, std::string algorithm, std::string output, bool verbose);
 std::vector<dmatrix_row> random_distance_matrix(int size);
 void random_newick_tree(int size, std::string algorithm, std::string output, bool verbose);
 void help();
