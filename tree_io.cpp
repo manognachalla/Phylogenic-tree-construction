@@ -16,21 +16,23 @@ sequence read_fasta(std::string filename) {
     
     std::string line, content, name;
     while (std::getline(input, line).good()) {
-        if (line.length() <= 1) {
+        if (line[0] == '>') {
             if (!content.empty()) {
                 sequence_list.seq.push_back(content);
                 sequence_list.name.push_back(name);
+                content.clear();
             }
-            content.clear();
-            name.clear();
-        }
-        if (line[0] == '>') {
             line = line.substr(1, line.length() -1);
             name = line;
         }
-        else {
+        else if (!line.empty()) {
             content += line;
         }
+    }
+    // Don't forget to add the last sequence
+    if (!content.empty()) {
+        sequence_list.seq.push_back(content);
+        sequence_list.name.push_back(name);
     }
     input.close();
     std::cout << "  Number of sequences: " << sequence_list.seq.size() << std::endl;

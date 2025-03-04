@@ -22,7 +22,7 @@ A C++ program for constructing phylogenetic trees from sequence data using Neigh
 To compile the program, use g++ with C++11 support:
 
 ```bash
-g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp upgma.cpp minimum_evolution.cpp tree_io.cpp -std=c++11
+g++ -o phylo_tree main.cpp tree.cpp neighbor_joining.cpp fitch_margoliash.cpp upgma.cpp minimum_evolution.cpp tree_io.cpp operations.cpp -std=c++11
 ```
 
 ## Usage
