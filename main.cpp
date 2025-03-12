@@ -1,7 +1,12 @@
-#include "tree.h"
+#include "tree.hpp"
 #include <iostream>
 #include <random>
 #include <ctime>
+#include <fstream>   // Required for ifstream (file handling)
+#include <vector>    // Required for vector
+#include <string>    // Required for string
+
+using namespace std;
 
 void help() {
     std::cout << "\nArgument help:\n"
@@ -57,6 +62,10 @@ std::vector<dmatrix_row> random_distance_matrix(int size) {
 
 void random_newick_tree(int size, std::string algorithm, std::string output, bool verbose) {
     std::vector<dmatrix_row> D = random_distance_matrix(size);
+    std::vector<std::string> names;
+    for (int i = 0; i < size; i++) {
+        names.push_back(std::to_string(i));
+    }
     if (algorithm == "fm") {
         fitch_margoliash_tree(D, output, verbose);
     } else if (algorithm == "upgma") {
@@ -68,12 +77,18 @@ void random_newick_tree(int size, std::string algorithm, std::string output, boo
     }
 }
 
-void fasta_to_newick(std::string& filename, int kmer_length, std::string method, std::string algorithm, std::string output, bool verbose) {
+void fasta_to_newick(std::string filename, int kmer_length, std::string method, std::string algorithm, std::string output, bool verbose) {
     sequence sequences = read_fasta(filename);
-    std::vector<std::vector<float>> frequencies = count_kmer_frequencies(sequences, kmer_length);
-    std::vector<dmatrix_row> D = distance_matrix(frequencies, sequences, kmer_length, method);
+    vector<vector<float>> frequencies = count_kmer_frequencies(sequences, kmer_length);
+    vector<dmatrix_row> D = distance_matrix(frequencies, sequences, kmer_length, method);
+
+    if (verbose) {
+        cout << "Number of sequences: " << sequences.seq.size() << endl;
+        cout << "Bootstrap Tree Generation for: " << filename << endl;
+    }
+
     Tree tree(sequences);
-    
+
     if (algorithm == "fm") {
         fitch_margoliash(D, tree, verbose);
     } else if (algorithm == "upgma") {
@@ -83,8 +98,11 @@ void fasta_to_newick(std::string& filename, int kmer_length, std::string method,
     } else {
         neighbor_joining(D, tree, verbose);
     }
-    
-    std::vector<std::string> to_write = {tree.newick};
+
+    // **Debugging: Print the tree for each bootstrap**
+    cout << "Generated Bootstrap Tree: " << tree.newick << endl;
+
+    vector<string> to_write = {tree.newick};
     write_to_file(output, to_write);
 }
 
@@ -116,6 +134,45 @@ int main(int argc, char** argv) {
         else if (arg == "-v") verbose = true;
     }
 
+    // Read sequences **inside** main before passing to functions
+    sequence sequences = read_fasta(input);
+
+    for (int i = 2; i < argc; i++) {
+        std::string arg = argv[i];
+    
+        if (arg == "-bootstrap" && i + 1 < argc) {
+            int numBootstrap = std::stoi(argv[++i]);
+            
+            // Perform bootstrap analysis
+            performBootstrapAnalysis(sequences.seq, numBootstrap, "bootstrap_sequences.fasta");
+            
+            // Run tree generation on bootstrap samples and store results
+            std::vector<std::string> bootstrapTrees;
+
+            for (int j = 0; j < numBootstrap; j++) {
+                std::string treeOutput = "bootstrap_tree_" + std::to_string(j) + ".txt";
+                fasta_to_newick("bootstrap_sequences.fasta", kmer_length, method, algorithm, treeOutput, verbose);
+                
+                std::ifstream treeFile(treeOutput);
+                if (!treeFile) {
+                    std::cerr << "Error: Could not open " << treeOutput << std::endl;
+                    continue;
+                }
+            
+                std::string tree;
+                std::getline(treeFile, tree);
+                bootstrapTrees.push_back(tree);
+                treeFile.close();
+            }
+            
+            // Compute bootstrap support scores
+            computeBootstrapSupport(bootstrapTrees, numBootstrap);
+            
+            return 0;
+        }
+    }
+    
+    
     if (input == "-random" && argc > 2) {
         int size = std::stoi(argv[2]);
         random_newick_tree(size, algorithm, output, verbose);

@@ -1,4 +1,4 @@
-#include "tree.h"
+#include "tree.hpp"
 #include <algorithm>
 #include <limits>
 #include <iostream>
@@ -72,7 +72,11 @@ void upgma(std::vector<dmatrix_row>& D, Tree& tree, bool verbose) {
 }
 
 void upgma_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose) {
-    Tree tree(D);
+    std::vector<std::string> names;
+    for (int i = 0; i < D.size(); i++) {
+        names.push_back(std::to_string(i));
+    }
+    Tree tree(D, names);
     upgma(D, tree, verbose);
     std::vector<std::string> to_write = {tree.newick};
     write_to_file(output, to_write);

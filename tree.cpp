@@ -1,11 +1,13 @@
-#include "tree.h"
+#include "tree.hpp"
 
-Tree::Tree(sequence sequences) {
+Tree::Tree(const sequence& sequences) {
     node root;
     root.id = sequences.seq.size();
     root.parent = -1;
     root.level = 0;
     root.isleaf = false;
+    root.name = "root";
+    root.subtree = "";
     tree.push_back(root);
 
     for (int i = 0; i < sequences.seq.size(); i++) {
@@ -20,12 +22,14 @@ Tree::Tree(sequence sequences) {
     }
 }
 
-Tree::Tree(std::vector<dmatrix_row> D) {
+Tree::Tree(const std::vector<dmatrix_row>& D, const std::vector<std::string>& names) {
     node root;
     root.id = D.size();
     root.parent = -1;
     root.level = 0;
     root.isleaf = false;
+    root.name = "root";
+    root.subtree = "";
     tree.push_back(root);
 
     for (int i = 0; i < D.size(); i++) {
@@ -34,8 +38,8 @@ Tree::Tree(std::vector<dmatrix_row> D) {
         leaf.parent = D.size();
         leaf.level = 1;
         leaf.isleaf = true;
-        leaf.name = std::to_string(i);
-        leaf.subtree = std::to_string(i);
+        leaf.name = names[i];
+        leaf.subtree = names[i];
         tree.push_back(leaf);
     }
 }
@@ -50,6 +54,7 @@ void Tree::joinNodes(int child1, int child2, float child1_distance, float child2
     new_node.child2 = child2;
     new_node.child1_distance = child1_distance;
     new_node.child2_distance = child2_distance;
+    new_node.name = "(" + tree[child1].name + "," + tree[child2].name + ")";
 
     tree[child1].parent = new_node.id;
     tree[child1].level++;
@@ -59,9 +64,6 @@ void Tree::joinNodes(int child1, int child2, float child1_distance, float child2
     new_node.subtree = "(" + tree[child1].subtree + ":" + std::to_string(child1_distance) + 
                       "," + tree[child2].subtree + ":" + std::to_string(child2_distance) + ")";
     
-    if (new_node.parent == -1) {
-        newick = new_node.subtree + ";";
-    }
-    
     tree.push_back(new_node);
+    newick = new_node.subtree + ";";
 }

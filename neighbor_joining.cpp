@@ -1,100 +1,130 @@
-#include "tree.h"
+#include "tree.hpp"
 #include <algorithm>
-#include <numeric>
-#include <cmath>
-#include <iostream>
-#include <vector>
-#include <queue>
-#include <tuple>
 #include <limits>
-
-
-
-using NodePair = std::tuple<float, int, int>;  // (Q-value, index1, index2)
-
-// Priority queue: Min-heap to store Q-matrix values
-std::priority_queue<NodePair, std::vector<NodePair>, std::greater<NodePair>> pq;
-
-void compute_initial_q_matrix(std::vector<dmatrix_row>& D) {
-    int n = D.size();
-    
-    // Populate the priority queue with initial Q-values
-    for (int i = 0; i < n; i++) {
-        for (int j = i + 1; j < n; j++) {
-            float q = (n - 2) * D[i].distances[j] - D[i].sum - D[j].sum;
-            pq.push(std::make_tuple(q, i, j));
-        }
-    }
-}
+#include <iostream>
+#include <map>
 
 void neighbor_joining(std::vector<dmatrix_row>& D, Tree& tree, bool verbose) {
     int n = D.size();
-    std::vector<bool> active(n, true);  // Tracks active nodes
-
-    compute_initial_q_matrix(D);
-
-    int iterations = 0;
-    while (n > 2) {
-        float min_q;
-        int min_i, min_j;
-
-        // Extract the best pair (lazy deletion: ignore invalid pairs)
-        do {
-            std::tie(min_q, min_i, min_j) = pq.top();
-            pq.pop();
-        } while (!active[min_i] || !active[min_j]);  // Ensure pair is valid
-
-        float d_ij = D[min_i].distances[min_j];
-        float d_i = (d_ij + (D[min_i].sum - D[min_j].sum) / (n - 2)) / 2;
-        float d_j = d_ij - d_i;
-
-        // Merge nodes in the tree
-        tree.joinNodes(D[min_i].id, D[min_j].id, d_i, d_j);
-
-        active[min_j] = false;  // Mark node j as inactive
-        D[min_i].id = tree.tree.size() - 1;  // Assign new merged node ID
-
-        // Update distances for the new merged node
-        for (int k = 0; k < D.size(); k++) {
-            if (!active[k] || k == min_i) continue;
-
-            float d_ik = D[min_i].distances[k];
-            float d_jk = D[min_j].distances[k];
-            float d_new = (d_ik + d_jk - d_ij) / 2;
-
-            D[min_i].distances[k] = d_new;
-            D[k].distances[min_i] = d_new;
+    std::map<int, int> current_to_original;  // Maps current indices to original node IDs
+    std::vector<int> active_indices(n);
+    
+    // Initialize the mapping and active indices
+    for (int i = 0; i < n; i++) {
+        current_to_original[i] = i;
+        active_indices[i] = i;
+    }
+    
+    // Initialize the distance matrix to ensure symmetry
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < i; j++) {
+            D[j].distances[i] = D[i].distances[j];
         }
-
-        // Update sum of distances for the new node
-        D[min_i].sum = 0;
-        for (int k = 0; k < D.size(); k++) {
-            if (active[k] && k != min_i) {
-                D[min_i].sum += D[min_i].distances[k];
+    }
+    
+    while (D.size() > 1) {
+        // Calculate row sums
+        std::vector<float> row_sums(D.size(), 0.0f);
+        for (int i = 0; i < D.size(); i++) {
+            for (int j = 0; j < D.size(); j++) {
+                if (i != j) {
+                    row_sums[i] += D[i].distances[j];
+                }
             }
         }
-
-        // Push updated Q-values into the priority queue
-        for (int k = 0; k < D.size(); k++) {
-            if (!active[k] || k == min_i) continue;
-
-            float q = (n - 2) * D[min_i].distances[k] - D[min_i].sum - D[k].sum;
-            pq.push(std::make_tuple(q, min_i, k));
+        
+        // Find minimum Q-value pair
+        double min_q = std::numeric_limits<double>::max();
+        int min_i = -1, min_j = -1;
+        
+        for (int i = 0; i < D.size(); i++) {
+            for (int j = 0; j < i; j++) {
+                double q = (D.size() - 2) * D[i].distances[j] - row_sums[i] - row_sums[j];
+                if (q < min_q) {
+                    min_q = q;
+                    min_i = i;
+                    min_j = j;
+                }
+            }
         }
-
-        n--;
-        iterations++;
-
-        if (verbose && iterations % 100 == 0) {
-            std::cout << "Iteration: " << iterations << std::endl;
+        
+        if (verbose) {
+            std::cout << "Merging nodes " << tree.tree[current_to_original[min_i] + 1].name 
+                     << " and " << tree.tree[current_to_original[min_j] + 1].name 
+                     << " (Q-value = " << min_q << ")\n";
+            std::cout << "Current matrix size: " << D.size() << std::endl;
         }
+        
+        // Calculate branch lengths
+        float dist_i = (D[min_i].distances[min_j] + (row_sums[min_i] - row_sums[min_j]) / (D.size() - 2)) / 2.0f;
+        float dist_j = D[min_i].distances[min_j] - dist_i;
+        
+        // Join the nodes in the tree
+        int orig_i = current_to_original[min_i];
+        int orig_j = current_to_original[min_j];
+        tree.joinNodes(orig_i, orig_j, dist_i, dist_j);
+        int new_node_id = tree.tree.size() - 1;
+        
+        // Create new distance matrix
+        std::vector<dmatrix_row> new_D;
+        new_D.reserve(D.size() - 1);
+        
+        // Copy unmerged rows and update their distances
+        for (int i = 0; i < D.size(); i++) {
+            if (i != min_i && i != min_j) {
+                dmatrix_row new_row;
+                new_row.id = D[i].id;
+                
+                // Copy distances for unmerged nodes
+                for (int j = 0; j < D.size(); j++) {
+                    if (j != min_i && j != min_j) {
+                        new_row.distances.push_back(D[i].distances[j]);
+                    }
+                }
+                
+                // Add distance to new merged node
+                float new_dist = (D[i].distances[min_i] + D[i].distances[min_j] - D[min_i].distances[min_j]) / 2.0f;
+                new_row.distances.push_back(new_dist);
+                new_D.push_back(new_row);
+            }
+        }
+        
+        // Add the new merged node
+        dmatrix_row new_row;
+        new_row.id = new_node_id;
+        for (const auto& row : new_D) {
+            new_row.distances.push_back(row.distances.back());
+        }
+        new_row.distances.push_back(0.0f);  // Distance to itself
+        new_D.push_back(new_row);
+        
+        // Update active indices
+        std::vector<int> new_active_indices;
+        for (int i = 0; i < active_indices.size(); i++) {
+            if (i != min_i && i != min_j) {
+                new_active_indices.push_back(active_indices[i]);
+            }
+        }
+        new_active_indices.push_back(new_node_id);
+        active_indices = new_active_indices;
+        
+        // Update the mapping
+        current_to_original.clear();
+        for (int i = 0; i < active_indices.size(); i++) {
+            current_to_original[i] = active_indices[i];
+        }
+        
+        // Replace old distance matrix
+        D = new_D;
     }
 }
 
-
-
 void neighbor_joining_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose) {
-    Tree tree(D);
+    std::vector<std::string> names;
+    for (int i = 0; i < D.size(); i++) {
+        names.push_back(std::to_string(i));
+    }
+    Tree tree(D, names);
     neighbor_joining(D, tree, verbose);
     std::vector<std::string> to_write = {tree.newick};
     write_to_file(output, to_write);

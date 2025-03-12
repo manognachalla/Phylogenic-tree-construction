@@ -1,4 +1,4 @@
-#include "tree.h"
+#include "tree.hpp"
 #include <algorithm>
 #include <numeric>
 #include <cmath>
@@ -66,35 +66,48 @@ std::vector<dmatrix_row> distance_matrix(std::vector<std::vector<float>>& freque
                     norm1 += frequencies[i][k] * frequencies[i][k];
                     norm2 += frequencies[j][k] * frequencies[j][k];
                 }
-                distance = 1 - (dot / (std::sqrt(norm1) * std::sqrt(norm2)));
+                if (norm1 == 0 || norm2 == 0) {
+                    distance = 1.0;  // Maximum distance for sequences with no k-mers
+                } else {
+                    distance = 1 - (dot / (std::sqrt(norm1) * std::sqrt(norm2)));
+                }
             }
             else {
                 float total1 = 0, total2 = 0;
                 for (float f : frequencies[i]) total1 += f;
                 for (float f : frequencies[j]) total2 += f;
 
+                if (total1 == 0 || total2 == 0) {
+                    distance = 1.0;  // Maximum distance for sequences with no k-mers
+                    D[i].distances[j] = distance;
+                    D[i].sum += distance;
+                    continue;
+                }
+
                 std::vector<float> freq1 = frequencies[i];
                 std::vector<float> freq2 = frequencies[j];
                 
                 for (int k = 0; k < freq1.size(); k++) {
-                    freq1[k] /= total1;
-                    freq2[k] /= total2;
+                    freq1[k] = total1 > 0 ? freq1[k] / total1 : 0;
+                    freq2[k] = total2 > 0 ? freq2[k] / total2 : 0;
                 }
 
                 if (method == "mahalanobis") {
                     distance = 0;
                     for (int k = 0; k < freq1.size(); k++) {
-                        if (freq1[k] + freq2[k] > 0) {
-                            distance += std::pow(freq1[k] - freq2[k], 2) / (freq1[k] + freq2[k]);
+                        float sum = freq1[k] + freq2[k];
+                        if (sum > 0) {
+                            distance += std::pow(freq1[k] - freq2[k], 2) / sum;
                         }
                     }
                     distance = std::sqrt(distance);
                 }
-                else {
+                else {  // fractional
                     distance = 0;
                     for (int k = 0; k < freq1.size(); k++) {
                         distance += std::abs(freq1[k] - freq2[k]);
                     }
+                    distance /= 2.0;  // Normalize to [0,1] range
                 }
             }
             D[i].distances[j] = distance;

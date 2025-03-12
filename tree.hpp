@@ -24,6 +24,13 @@ struct dmatrix_row {
     std::vector<float> distances;
     float sum;
     int id;
+    
+    // Add constructors for proper copying and moving
+    dmatrix_row() = default;
+    dmatrix_row(const dmatrix_row&) = default;
+    dmatrix_row(dmatrix_row&&) = default;
+    dmatrix_row& operator=(const dmatrix_row&) = default;
+    dmatrix_row& operator=(dmatrix_row&&) = default;
 };
 
 // Tree class declaration
@@ -31,8 +38,8 @@ class Tree {
 public:
     std::vector<node> tree;
     std::string newick;
-    Tree(sequence);
-    Tree(std::vector<dmatrix_row>);
+    Tree(const sequence&);
+    Tree(const std::vector<dmatrix_row>&, const std::vector<std::string>&);
     void joinNodes(int, int, float, float);
 };
 
@@ -53,7 +60,7 @@ void optimize_branch_lengths(Tree& tree, const std::vector<dmatrix_row>& D);
 
 // File I/O and utility functions
 void write_to_file(std::string filename, std::vector<std::string> to_write);
-void fasta_to_newick(std::string& filename, int kmer_length, std::string method, std::string algorithm, std::string output, bool verbose);
+void fasta_to_newick(std::string filename, int kmer_length, std::string method, std::string algorithm, std::string output, bool verbose);
 std::vector<dmatrix_row> random_distance_matrix(int size);
 void random_newick_tree(int size, std::string algorithm, std::string output, bool verbose);
 void help();
@@ -65,5 +72,10 @@ void upgma_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose);
 // Minimum Evolution algorithm declarations
 void minimum_evolution(std::vector<dmatrix_row>& D, Tree& tree, bool verbose);
 void minimum_evolution_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose);
+
+void computeTransitionTransversionRatio(const std::vector<std::string> &names, const std::vector<std::string> &sequences);
+std::vector<std::vector<std::string>> bootstrapSequences(const std::vector<std::string> &sequences, int numBootstrap);
+void performBootstrapAnalysis(const std::vector<std::string> &sequences, int numBootstrap, const std::string &outputFile);
+void computeBootstrapSupport(const std::vector<std::string> &bootstrapTrees, int numBootstraps);
 
 #endif
