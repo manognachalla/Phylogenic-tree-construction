@@ -1,6 +1,6 @@
 # Phylogenetic Tree Construction Tool
 
-A C++ program for constructing phylogenetic trees from sequence data using Neighbor-Joining, Fitch-Margoliash, UPGMA, or Minimum Evolution algorithms. The program supports both FASTA and PAML format sequence files and can also generate random trees for testing purposes.
+A C++ program for constructing phylogenetic trees from sequence data using Neighbor-Joining, Fitch-Margoliash, UPGMA, or Minimum Evolution algorithms. The program supports FASTA  format sequence files and can also generate random trees for testing purposes.
 
 ## Features
 
