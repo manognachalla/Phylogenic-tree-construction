@@ -1,83 +1,167 @@
-#include "tree.hpp"
-#include <algorithm>
-#include <limits>
 #include <iostream>
+#include <vector>
+#include <cmath>
+#include <set>
+#include <sstream>
+#include <iterator>
+#include <algorithm>
+#include <cstdlib>
+#include <ctime>
 
-void upgma(std::vector<dmatrix_row>& D, Tree& tree, bool verbose) {
-    int n = D.size();
-    std::vector<float> heights(n, 0.0f);  // Height of each node from leaves
-    std::vector<int> cluster_size(n, 1);  // Size of each cluster
+using namespace std;
 
-    for (int step = 0; step < n - 1; step++) {
-        // Find minimum distance
-        float min_dist = std::numeric_limits<float>::max();
-        int min_i = -1, min_j = -1;
-        
-        for (int i = 0; i < D.size(); i++) {
-            for (int j = 0; j < i; j++) {
-                if (D[i].distances[j] < min_dist) {
-                    min_dist = D[i].distances[j];
-                    min_i = i;
-                    min_j = j;
+class Node {
+public:
+    Node* left;
+    Node* right;
+    int value; // Only used for leaf taxa
+    bool isLeaf;
+    Node* nearestNeighbor;
+    double distToNN;
+
+    Node(int val) : left(nullptr), right(nullptr), value(val), isLeaf(true), nearestNeighbor(nullptr), distToNN(0.0) {}
+    Node(Node* l, Node* r) : left(l), right(r), isLeaf(false), nearestNeighbor(nullptr), distToNN(0.0) {}
+
+    vector<Node*> getLeaves() const {
+        vector<Node*> leaves;
+        if (isLeaf) {
+            leaves.push_back(const_cast<Node*>(this));
+        } else {
+            if (left) {
+                vector<Node*> l_leaves = left->getLeaves();
+                leaves.insert(leaves.end(), l_leaves.begin(), l_leaves.end());
+            }
+            if (right) {
+                vector<Node*> r_leaves = right->getLeaves();
+                leaves.insert(leaves.end(), r_leaves.begin(), r_leaves.end());
+            }
+        }
+        return leaves;
+    }
+
+    int countLeaves() const {
+        return getLeaves().size();
+    }
+
+    double getDistance(Node* other) {
+        vector<Node*> a = this->getLeaves();
+        vector<Node*> b = other->getLeaves();
+
+        double total = 0.0;
+        for (Node* x : a) {
+            for (Node* y : b) {
+                total += abs(x->value - y->value);
+            }
+        }
+
+        return total / (a.size() * b.size());
+    }
+
+    string toNewick() const {
+        if (isLeaf) {
+            return to_string(value);
+        } else {
+            return "(" + left->toNewick() + "," + right->toNewick() + ")";
+        }
+    }
+};
+
+class UPGMA {
+public:
+    Node* tree;
+
+    UPGMA(const vector<int>& taxa) {
+        set<Node*> clusters;
+        for (int val : taxa) {
+            clusters.insert(new Node(val));
+        }
+
+        buildTree(clusters);
+    }
+
+    ~UPGMA() {
+        deleteTree(tree);
+    }
+
+    void buildTree(set<Node*>& clusters) {
+        for (Node* node : clusters) {
+            updateDistances(node, clusters);
+        }
+
+        while (clusters.size() > 1) {
+            Node* c1 = nullptr;
+            Node* c2 = nullptr;
+            double minDist = 1e9;
+
+            for (Node* node : clusters) {
+                if (node->distToNN < minDist) {
+                    minDist = node->distToNN;
+                    c1 = node;
+                    c2 = node->nearestNeighbor;
+                }
+            }
+
+            clusters.erase(c1);
+            clusters.erase(c2);
+
+            Node* merged = new Node(c1, c2);
+            clusters.insert(merged);
+
+            updateDistances(merged, clusters);
+
+            for (Node* node : clusters) {
+                if (node->nearestNeighbor == c1 || node->nearestNeighbor == c2) {
+                    updateDistances(node, clusters);
                 }
             }
         }
 
-        if (verbose) {
-            std::cout << "Step " << step + 1 << ": Joining clusters " << min_i << " and " << min_j 
-                      << " (distance = " << min_dist << ")\n";
-        }
+        tree = *clusters.begin();
+    }
 
-        // Calculate height for the new node
-        float new_height = min_dist / 2.0f;
+    void updateDistances(Node* target, const set<Node*>& clusters) {
+        target->nearestNeighbor = nullptr;
+        target->distToNN = 1e9;
 
-        // Join the nodes in the tree
-        float dist_i = new_height - heights[min_i];
-        float dist_j = new_height - heights[min_j];
-        tree.joinNodes(min_i, min_j, dist_i, dist_j);
+        for (Node* node : clusters) {
+            if (node == target) continue;
 
-        // Update distance matrix
-        std::vector<float> new_distances;
-        for (int k = 0; k < D.size(); k++) {
-            if (k != min_i && k != min_j) {
-                // Calculate new distance using weighted average
-                float new_dist = (D[min_i].distances[k] * cluster_size[min_i] + 
-                                D[min_j].distances[k] * cluster_size[min_j]) / 
-                               (cluster_size[min_i] + cluster_size[min_j]);
-                new_distances.push_back(new_dist);
+            double d = target->getDistance(node);
+            if (d < target->distToNN) {
+                target->distToNN = d;
+                target->nearestNeighbor = node;
             }
         }
-
-        // Update cluster sizes
-        cluster_size.push_back(cluster_size[min_i] + cluster_size[min_j]);
-
-        // Remove larger index first to avoid shifting issues
-        if (min_i > min_j) {
-            D.erase(D.begin() + min_i);
-            D.erase(D.begin() + min_j);
-        } else {
-            D.erase(D.begin() + min_j);
-            D.erase(D.begin() + min_i);
-        }
-
-        // Add new row
-        dmatrix_row new_row;
-        new_row.distances = new_distances;
-        new_row.id = D.size();
-        D.push_back(new_row);
-
-        // Update heights
-        heights.push_back(new_height);
     }
-}
 
-void upgma_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose) {
-    std::vector<std::string> names;
-    for (int i = 0; i < D.size(); i++) {
-        names.push_back(std::to_string(i));
+    string getNewick() const {
+        return tree->toNewick() + ";";
     }
-    Tree tree(D, names);
-    upgma(D, tree, verbose);
-    std::vector<std::string> to_write = {tree.newick};
-    write_to_file(output, to_write);
+
+private:
+    void deleteTree(Node* node) {
+        if (!node) return;
+        deleteTree(node->left);
+        deleteTree(node->right);
+        delete node;
+    }
+};
+
+int main() {
+    srand(time(0));
+    vector<int> taxa;
+    for (int i = 0; i < 6; ++i) {
+        taxa.push_back(rand() % 100);
+    }
+
+    cout << "Initial taxa: ";
+    for (int val : taxa) cout << val << " ";
+    cout << endl;
+
+    UPGMA upgma(taxa);
+
+    cout << "UPGMA Tree (Newick format): " << endl;
+    cout << upgma.getNewick() << endl;
+
+    return 0;
 }
