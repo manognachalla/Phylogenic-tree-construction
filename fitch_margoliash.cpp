@@ -1,187 +1,201 @@
-#include "tree.hpp"
-#include <algorithm>
-#include <limits>
 #include <iostream>
-#include <map>
+#include <vector>
+#include <string>
+#include <limits>
 #include <cmath>
+#include <iomanip>
+#include <map>
+#include <sstream>
+#include <algorithm>
+#include <numeric>
 
-float calculate_tree_fit(const Tree& tree, const std::vector<dmatrix_row>& D) {
-    float fit = 0.0f;
-    for (int i = 0; i < D.size(); i++) {
-        for (int j = 0; j < i; j++) {  // Only use lower triangle
-            float diff = D[i].distances[j] - D[j].distances[i];  // Should be close to 0
-            fit += diff * diff;
-        }
+using namespace std;
+
+struct TreeNode {
+    string name;
+    TreeNode* left = nullptr;
+    TreeNode* right = nullptr;
+    double branch_length_left = 0.0;
+    double branch_length_right = 0.0;
+
+    bool is_leaf() const {
+        return left == nullptr && right == nullptr;
     }
-    return fit;
+};
+
+// Recursively build pairwise distances in tree
+void traverse_distances(TreeNode* node, vector<pair<string, double>> path,
+                        map<string, int>& label_index, vector<vector<double>>& dist_matrix, double acc_dist) {
+    if (!node) return;
+
+    if (node->is_leaf()) {
+        for (auto& [other, d] : path) {
+            int i = label_index[node->name];
+            int j = label_index[other];
+            dist_matrix[i][j] = dist_matrix[j][i] = acc_dist + d;
+        }
+        path.emplace_back(node->name, 0.0);
+    } else {
+        auto path_left = path;
+        path_left.emplace_back(node->left->name, node->branch_length_left);
+        traverse_distances(node->left, path_left, label_index, dist_matrix, acc_dist + node->branch_length_left);
+
+        auto path_right = path;
+        path_right.emplace_back(node->right->name, node->branch_length_right);
+        traverse_distances(node->right, path_right, label_index, dist_matrix, acc_dist + node->branch_length_right);
+    }
 }
 
-void optimize_branch_lengths(Tree& tree, const std::vector<dmatrix_row>& D) {
-    // Simple gradient descent for branch length optimization
-    float learning_rate = 0.01f;
-    int max_iterations = 100;
-    
-    for (int iter = 0; iter < max_iterations; iter++) {
-        float old_fit = calculate_tree_fit(tree, D);
-        
-        // Update each branch length
-        for (auto& node : tree.tree) {
-            if (!node.isleaf) {
-                // Try adjusting child1 distance
-                float old_dist = node.child1_distance;
-                node.child1_distance *= (1.0f + learning_rate);
-                float new_fit = calculate_tree_fit(tree, D);
-                
-                if (new_fit > old_fit) {
-                    // Try decreasing instead
-                    node.child1_distance = old_dist * (1.0f - learning_rate);
-                    new_fit = calculate_tree_fit(tree, D);
-                    if (new_fit > old_fit) {
-                        // Revert if no improvement
-                        node.child1_distance = old_dist;
-                    }
-                }
-                
-                // Same for child2 distance
-                old_dist = node.child2_distance;
-                node.child2_distance *= (1.0f + learning_rate);
-                new_fit = calculate_tree_fit(tree, D);
-                
-                if (new_fit > old_fit) {
-                    node.child2_distance = old_dist * (1.0f - learning_rate);
-                    new_fit = calculate_tree_fit(tree, D);
-                    if (new_fit > old_fit) {
-                        node.child2_distance = old_dist;
-                    }
-                }
+// Compute least squares error
+double compute_least_squares_error(const vector<vector<double>>& D, TreeNode* tree, const vector<string>& labels) {
+    int n = labels.size();
+    vector<vector<double>> dist_matrix(n, vector<double>(n, 0.0));
+    map<string, int> label_index;
+    for (int i = 0; i < n; ++i)
+        label_index[labels[i]] = i;
+
+    traverse_distances(tree, {}, label_index, dist_matrix, 0.0);
+
+    double error = 0.0;
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j)
+            error += pow(D[i][j] - dist_matrix[i][j], 2);
+
+    return error;
+}
+
+// Neighbor joining tree construction
+TreeNode* neighbor_joining(vector<vector<double>> D, vector<string> labels) {
+    int n = D.size();
+    vector<TreeNode*> nodes(n);
+    for (int i = 0; i < n; ++i)
+        nodes[i] = new TreeNode{labels[i]};
+
+    vector<int> active(n);
+    iota(active.begin(), active.end(), 0);
+
+    while (active.size() > 2) {
+        int m = active.size();
+        vector<double> total_d(n, 0.0);
+        for (int i : active)
+            for (int j : active)
+                total_d[i] += D[i][j];
+
+        vector<vector<double>> Q(n, vector<double>(n, numeric_limits<double>::infinity()));
+        for (int i : active) {
+            for (int j : active) {
+                if (i < j)
+                    Q[i][j] = (m - 2) * D[i][j] - total_d[i] - total_d[j];
             }
         }
-    }
-}
 
-void fitch_margoliash(std::vector<dmatrix_row>& D, Tree& tree, bool verbose) {
-    int n = D.size();
-    std::map<int, int> current_to_original;  // Maps current indices to original node IDs
-    std::vector<int> active_indices(n);
-    
-    // Initialize the mapping and active indices
-    for (int i = 0; i < n; i++) {
-        current_to_original[i] = i;
-        active_indices[i] = i;
-    }
-    
-    // Initialize the distance matrix to ensure symmetry
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < i; j++) {
-            D[j].distances[i] = D[i].distances[j];
-        }
-    }
-    
-    while (D.size() > 1) {
-        // Find minimum weighted distance pair
-        double min_dist = std::numeric_limits<double>::max();
         int min_i = -1, min_j = -1;
-        
-        for (int i = 0; i < D.size(); i++) {
-            for (int j = 0; j < i; j++) {
-                double weighted_dist = D[i].distances[j] / std::sqrt(D[i].distances[j]);
-                if (weighted_dist < min_dist) {
-                    min_dist = weighted_dist;
+        double min_val = numeric_limits<double>::infinity();
+        for (int i : active) {
+            for (int j : active) {
+                if (i < j && Q[i][j] < min_val) {
+                    min_val = Q[i][j];
                     min_i = i;
                     min_j = j;
                 }
             }
         }
-        
-        if (verbose) {
-            std::cout << "Merging nodes " << tree.tree[current_to_original[min_i] + 1].name 
-                     << " and " << tree.tree[current_to_original[min_j] + 1].name 
-                     << " (distance = " << min_dist << ")\n";
-            std::cout << "Current matrix size: " << D.size() << std::endl;
+
+        TreeNode* new_node = new TreeNode;
+        double delta = (total_d[min_i] - total_d[min_j]) / (m - 2);
+        double limb_i = 0.5 * D[min_i][min_j] + 0.5 * delta;
+        double limb_j = 0.5 * D[min_i][min_j] - 0.5 * delta;
+
+        new_node->left = nodes[min_i];
+        new_node->right = nodes[min_j];
+        new_node->branch_length_left = limb_i;
+        new_node->branch_length_right = limb_j;
+
+        vector<double> new_row(n, 0.0);
+        for (int k : active) {
+            if (k != min_i && k != min_j)
+                new_row[k] = 0.5 * (D[min_i][k] + D[min_j][k] - D[min_i][min_j]);
         }
-        
-        // Calculate branch lengths
-        float dist_i = min_dist / 2.0f;
-        float dist_j = min_dist / 2.0f;
-        
-        // Join the nodes in the tree
-        int orig_i = current_to_original[min_i];
-        int orig_j = current_to_original[min_j];
-        tree.joinNodes(orig_i, orig_j, dist_i, dist_j);
-        int new_node_id = tree.tree.size() - 1;
-        
-        // Create new distance matrix
-        std::vector<dmatrix_row> new_D;
-        new_D.reserve(D.size() - 1);
-        
-        // Copy unmerged rows and update their distances
-        for (int i = 0; i < D.size(); i++) {
-            if (i != min_i && i != min_j) {
-                dmatrix_row new_row;
-                new_row.id = D[i].id;
-                new_row.distances.reserve(D.size() - 2);  // Reserve space to avoid reallocations
-                
-                // Copy distances for unmerged nodes
-                for (int j = 0; j < D.size(); j++) {
-                    if (j != min_i && j != min_j) {
-                        new_row.distances.push_back(D[i].distances[j]);
-                    }
-                }
-                
-                // Add distance to new merged node using weighted average
-                float new_dist = (D[i].distances[min_i] + D[i].distances[min_j]) / 2.0f;
-                new_row.distances.push_back(new_dist);
-                new_D.push_back(new_row);
+
+        for (int k : active) {
+            if (k != min_i && k != min_j) {
+                D[k][min_i] = D[min_i][k] = new_row[k];
+                D[k][min_j] = D[min_j][k] = new_row[k];
             }
         }
-        
-        // Add the new merged node
-        dmatrix_row new_row;
-        new_row.id = new_node_id;
-        new_row.distances.reserve(new_D.size());  // Reserve space to avoid reallocations
-        
-        for (const auto& row : new_D) {
-            new_row.distances.push_back(row.distances.back());
-        }
-        new_row.distances.push_back(0.0f);  // Distance to itself
-        new_D.push_back(new_row);
-        
-        // Update active indices
-        std::vector<int> new_active_indices;
-        new_active_indices.reserve(active_indices.size() - 1);  // Reserve space
-        for (int i = 0; i < active_indices.size(); i++) {
-            if (i != min_i && i != min_j) {
-                new_active_indices.push_back(active_indices[i]);
-            }
-        }
-        new_active_indices.push_back(new_node_id);
-        active_indices = new_active_indices;
-        
-        // Update the mapping
-        current_to_original.clear();
-        for (int i = 0; i < active_indices.size(); i++) {
-            current_to_original[i] = active_indices[i];
-        }
-        
-        // Replace old distance matrix
-        D = std::move(new_D);  // Use move semantics to avoid copying
+
+        nodes[min_i] = new_node;
+        active.erase(remove(active.begin(), active.end(), min_j), active.end());
     }
-    
-    // Final optimization of branch lengths
-    if (verbose) {
-        std::cout << "Optimizing branch lengths...\n";
-    }
-    optimize_branch_lengths(tree, D);
+
+    TreeNode* root = new TreeNode;
+    root->left = nodes[active[0]];
+    root->right = nodes[active[1]];
+    root->branch_length_left = D[active[0]][active[1]] / 2;
+    root->branch_length_right = D[active[0]][active[1]] / 2;
+
+    return root;
 }
 
-void fitch_margoliash_tree(std::vector<dmatrix_row>& D, std::string output, bool verbose) {
-    std::vector<std::string> names;
-    names.reserve(D.size());  // Reserve space
-    for (int i = 0; i < D.size(); i++) {
-        names.push_back(std::to_string(i));
+// Gradient-free branch length optimization
+void optimize_branch_lengths(TreeNode* tree, const vector<vector<double>>& D, const vector<string>& labels, double lr = 0.01, int iterations = 100) {
+    for (int iter = 0; iter < iterations; ++iter) {
+        function<void(TreeNode*)> update_branch = [&](TreeNode* node) {
+            if (!node || node->is_leaf()) return;
+
+            double orig_left = node->branch_length_left;
+            double orig_right = node->branch_length_right;
+            double base_error = compute_least_squares_error(D, tree, labels);
+
+            node->branch_length_left += lr;
+            if (compute_least_squares_error(D, tree, labels) > base_error)
+                node->branch_length_left = orig_left;
+
+            node->branch_length_right += lr;
+            if (compute_least_squares_error(D, tree, labels) > base_error)
+                node->branch_length_right = orig_right;
+
+            update_branch(node->left);
+            update_branch(node->right);
+        };
+        update_branch(tree);
     }
-    Tree tree(D, names);
-    fitch_margoliash(D, tree, verbose);
-    std::vector<std::string> to_write = {tree.newick};
-    write_to_file(output, to_write);
+}
+
+TreeNode* run_fitch_margoliash(vector<vector<double>> D, vector<string> labels, double& final_error) {
+    TreeNode* tree = neighbor_joining(D, labels);
+    optimize_branch_lengths(tree, D, labels);
+    final_error = compute_least_squares_error(D, tree, labels);
+    return tree;
+}
+
+// Convert tree to Newick string
+string to_newick(TreeNode* node) {
+    if (node->is_leaf()) return node->name;
+
+    string left = to_newick(node->left);
+    string right = to_newick(node->right);
+    ostringstream ss;
+    ss << "(" << left << ":" << fixed << setprecision(6) << node->branch_length_left
+       << "," << right << ":" << node->branch_length_right << ")";
+    return ss.str();
+}
+
+int main() {
+    vector<string> labels = {"A", "B", "C", "D"};
+    vector<vector<double>> D = {
+        {0.0, 5.0, 9.0, 9.0},
+        {5.0, 0.0, 10.0, 10.0},
+        {9.0, 10.0, 0.0, 8.0},
+        {9.0, 10.0, 8.0, 0.0}
+    };
+
+    double error;
+    TreeNode* tree = run_fitch_margoliash(D, labels, error);
+
+    cout << "Fitch-Margoliash least squares error: " << error << endl;
+    string newick = to_newick(tree) + ";";
+    cout << "Newick format:\n" << newick << endl;
+
+    return 0;
 }
